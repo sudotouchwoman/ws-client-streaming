@@ -1,23 +1,27 @@
 import { Box, Container, CssBaseline, Typography } from '@mui/material'
 import React from 'react'
-import Feed from './Feed'
-import { Header, Root, SidePane } from './Layout'
+import { defaultAddr, WebSocketProvider } from '../contexts/UseWebsocket'
+import Feed, { Redraws } from './Feed'
 
 type MenuProps = {}
 
 const Menu = (props: MenuProps) => {
   return (
-    <React.Fragment>
+    <React.StrictMode>
       <CssBaseline />
-      <Container sx={{
-        bgcolor: 'gainsboro'
-      }} >
-        <Typography>
-          Main app content here
-        </Typography>
-        <Feed/>
-      </Container>
-    </React.Fragment>
+      <WebSocketProvider url={defaultAddr}>
+        <Container sx={{
+          bgcolor: 'gainsboro',
+          py: 10
+        }} >
+          <Typography variant='body1'>
+            Main app content here
+          </Typography>
+          <Redraws name='container'/>
+          <Feed />
+        </Container>
+      </WebSocketProvider>
+    </React.StrictMode>
   )
 }
 
