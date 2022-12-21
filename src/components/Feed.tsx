@@ -1,10 +1,10 @@
 import { Alert, AlertColor, Button, Card, ListItem, ListItemText, Snackbar, Typography } from '@mui/material'
-import React, { useCallback, useContext, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { ReadyState } from 'react-use-websocket'
 import { useWebSocket } from 'react-use-websocket/dist/lib/use-websocket'
 import { FixedSizeList, ListChildComponentProps } from 'react-window'
-import { defaultAddr, WebsocketContext } from '../contexts/UseWebsocket'
 
+const defaultAddr = "ws://localhost:8080/ws"
 const maxEntries = 10
 const secondInGolang = 1000000000
 
@@ -71,9 +71,8 @@ interface AlertSnackbarProps {
     open: ReadyState
 }
 
-// displays an alert once websocket connection is
-// closed or reopened
-const AlertSnackbar = ({ open }: AlertSnackbarProps) => {
+// displays an alert with socket connection status
+const SocketStatusAlert = ({ open }: AlertSnackbarProps) => {
     const connectionStatus = {
         [ReadyState.CONNECTING]: 'Connecting',
         [ReadyState.OPEN]: 'Open',
@@ -83,21 +82,15 @@ const AlertSnackbar = ({ open }: AlertSnackbarProps) => {
     }[open];
 
     const severity = (r: ReadyState): AlertColor => {
-        if ([ReadyState.CONNECTING, ReadyState.CLOSING].includes(r)) return 'warning'
-        if (ReadyState.OPEN === r) return 'success'
+        if ([ReadyState.CLOSING].includes(r)) return 'warning'
+        if ([ReadyState.OPEN].includes(r)) return 'success'
         return 'error'
     }
 
-    return <Snackbar
-        open={true}
-        autoHideDuration={500}
-    >
-        <Alert severity={severity(open)}>
-            Websocket connection status: {connectionStatus}
-        </Alert>
-    </Snackbar>
+    return <Alert severity={severity(open)}>
+        Websocket connection status: {connectionStatus}
+    </Alert>
 }
-
 
 // Feed component renders log feed
 // it state is associated with the websocket
@@ -105,16 +98,12 @@ const Feed = () => {
     const [messageHistory, setMessageHistory] = useState<string[]>([])
     const [sockUrl, setSockUrl] = useState(defaultAddr)
     const [serial, setSerial] = useState("COM5")
-    const disconnect = useRef(false)
-    const oldReadyState = useRef(ReadyState.UNINSTANTIATED)
+    const shouldReconnect = useRef(true)
     // const { ready, message, ws, toggleOpen } = useContext(WebsocketContext)
     const { sendMessage, lastMessage, readyState } = useWebSocket(
         sockUrl,
-        { shouldReconnect: (c: CloseEvent) => disconnect.current === false }
+        { shouldReconnect: (c: CloseEvent) => shouldReconnect.current === true }
     )
-
-    const shouldOpenSnackbar = oldReadyState.current !== readyState
-    useEffect(() => { oldReadyState.current = readyState }, [readyState])
 
     const defaultRequest = (x: Partial<SocketRequest>) => {
         return JSON.stringify({
@@ -130,23 +119,13 @@ const Feed = () => {
     useEffect(() => {
         if (SocketNotReady(readyState)) return
         sendMessage(defaultRequest({ method: 'discover' }))
-
         const id = setInterval(() => {
             sendMessage(defaultRequest({ method: 'discover' }))
         }, 10000)
         return () => clearInterval(id)
     }, [sockUrl, sendMessage, readyState])
 
-    // bug: once connection is closed by server, client
-    // does not recieve any context updates!
-    const sendToSock = (x: Partial<SocketRequest>) => {
-        if (SocketNotReady(readyState)) return console.warn('send failed: not ready yet', readyState)
-        console.log("sends into socket")
-        sendMessage(defaultRequest(x))
-    }
-
-    // bug: this effect is called but
-    // actual messages do not get updated until snackbar disappears!
+    // populate array of messages from producer
     useEffect(() => {
         setMessageHistory((old) => {
             if (!lastMessage) return old // skip null messages
@@ -163,30 +142,27 @@ const Feed = () => {
             }
             return old.concat(lastMessage.data)
         })
-        console.log('updated messages')
     }, [lastMessage, setMessageHistory])
 
-    const handleConnect = useCallback(
-        () => {
-            if (disconnect.current) return console.log('omit disconnect')
-            setSockUrl(defaultAddr)
-        }, [disconnect]
-    )
-    const handleDiscover = useCallback(() => sendToSock({ method: 'discover' }), [sockUrl, sendToSock])
+    const handleDiscover = () => {
+        if (SocketNotReady(readyState)) return console.warn('send failed: not ready yet', readyState)
+        console.log("sends into socket")
+        sendMessage(defaultRequest({ method: 'discover' }))
+    }
 
     return (
         <Card>
             <Redraws name='feed' />
-            <AlertSnackbar open={readyState} />
-            <Button onClick={handleConnect}>
+            {/* <Button onClick={SocketNotReady(readyState) ? handleConnect : handleDisconnect}>
                 {!SocketNotReady(readyState) ? "Pause" : "Resume"}
-            </Button>
+            </Button> */}
             <Button
                 onClick={handleDiscover}
                 disabled={SocketNotReady(readyState)}
             >
-                Discover connections
+                Refresh connections
             </Button>
+            <SocketStatusAlert open={readyState} />
             <LogFeed messages={messageHistory} />
         </Card>
     )
