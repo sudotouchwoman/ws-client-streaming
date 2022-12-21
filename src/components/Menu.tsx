@@ -1,4 +1,4 @@
-import { Box, Container, CssBaseline, Typography } from '@mui/material'
+import { Container, CssBaseline, Typography } from '@mui/material'
 import React from 'react'
 import { defaultAddr, WebSocketProvider } from '../contexts/UseWebsocket'
 import Feed, { Redraws } from './Feed'
@@ -9,7 +9,7 @@ const Menu = (props: MenuProps) => {
   return (
     <React.StrictMode>
       <CssBaseline />
-      <WebSocketProvider url={defaultAddr}>
+      {/* <WebSocketProvider url={defaultAddr}> */}
         <Container sx={{
           bgcolor: 'gainsboro',
           py: 10
@@ -20,7 +20,7 @@ const Menu = (props: MenuProps) => {
           <Redraws name='container'/>
           <Feed />
         </Container>
-      </WebSocketProvider>
+      {/* </WebSocketProvider> */}
     </React.StrictMode>
   )
 }

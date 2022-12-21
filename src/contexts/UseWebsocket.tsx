@@ -17,7 +17,7 @@ export const WebsocketContext = createContext<WebSocketState>({
     toggleOpen: () => { console.warn("nothing to toggle") }
 })
 
-export type WebSocketProviderProps = {
+export interface WebSocketProviderProps  {
     children: React.ReactNode
     url: string
 }
@@ -52,18 +52,6 @@ const WebSocketDispatcher = (s: SockState, a: Partial<SockAction>): SockState =>
         case 'message':
             console.log(a.message ? "message:" + a.message : "empty message!")
             return { ...s, message: a?.message }
-        // case 'send':
-        //     if (!s.ws) {
-        //         console.warn("websocket is null!")
-        //         break
-        //     }
-        //     if (!a.request) {
-        //         console.warn("request is empty")
-        //         break
-        //     }
-        //     console.warn('will send request', a.request)
-        //     s.ws.send(a.request)
-        //     break
         case 'close_sb':
             return { ...s, snackbar: null }
         default:
@@ -90,9 +78,6 @@ export const WebSocketProvider = React.memo((props: WebSocketProviderProps) => {
         console.log("will open new websocket")
         const socket = new WebSocket(props.url)
 
-        const openListener = () => {
-            dispatch({ type: 'open', ws: socket })
-        }
         const errorListener = (e: Event) => {
             console.warn("websocket error", e)
             dispatch({ type: 'error' })
@@ -106,13 +91,18 @@ export const WebSocketProvider = React.memo((props: WebSocketProviderProps) => {
             console.log("ws message:", e.data)
             dispatch({ type: 'message', message: e.data })
         }
+        const openListener = () => {
+            console.log('ws opened')
+            dispatch({ type: 'open', ws: socket })
+        }
 
-        socket.addEventListener('open', openListener)
         socket.addEventListener('error', errorListener)
         socket.addEventListener('message', messageListener)
         socket.addEventListener('close', closeListener)
+        socket.addEventListener('open', openListener)
 
         return () => {
+            console.log('will close current ws')
             if (!state.ws) return console.log('already closed')
             socket.removeEventListener('open', openListener)
             socket.removeEventListener('error', errorListener)
@@ -135,7 +125,7 @@ export const WebSocketProvider = React.memo((props: WebSocketProviderProps) => {
         // content from re-rendering untill it's closed?
         <>
             <Snackbar
-                open={state.snackbar !== null}
+                open={!!state.snackbar}
                 message={state.snackbar}
                 TransitionComponent={Slide}
                 autoHideDuration={5000}
@@ -148,10 +138,6 @@ export const WebSocketProvider = React.memo((props: WebSocketProviderProps) => {
                 ready: state.open && state.ready,
                 message: state.message,
                 ws: state.ws,
-                // send: (x: Partial<SocketRequest>) => {
-                //     console.log("send", x)
-                //     dispatch({ type: 'send', request: defaultRequest(x) })
-                // },
                 toggleOpen: toggler
             }}>
                 {props.children}
