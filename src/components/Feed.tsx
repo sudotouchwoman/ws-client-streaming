@@ -1,38 +1,32 @@
-import { Alert, AlertColor, Button, Card, ListItem, ListItemText, Snackbar, Typography } from '@mui/material'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Alert, AlertColor, Card, ListItem, ListItemText, Snackbar, Typography } from '@mui/material'
+import React, { useCallback } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import { ReadyState } from 'react-use-websocket'
-import { useWebSocket } from 'react-use-websocket/dist/lib/use-websocket'
 import { FixedSizeList, ListChildComponentProps } from 'react-window'
-
-const defaultAddr = "ws://localhost:8080/ws"
-const maxEntries = 10
-const secondInGolang = 1000000000
-
-type SocketRequest = {
-    method: 'read' | 'list' | 'discover'
-    serial: string
-    baudrate: number
-    timeout: number
-}
+import { SerialMessage } from '../contexts/WebSocket/messages'
+import { GlobalStateContext } from '../contexts/WebSocket/WebSocketContext'
+import Controls from './Controls'
+import SerialSelectorDropdown from './SerialDropdown'
 
 type RedrawProps = {
     name: string
 }
 
-export const Redraws = (p: RedrawProps) => {
+// helper component to debug component re-renders
+export const Redraws = ({ name }: RedrawProps) => {
     const redraws = useRef(0)
     useEffect(() => {
         redraws.current += 1
     })
     return (
         <Typography variant='body1'>
-            {p.name} redraws: {redraws.current}
+            {name} redraws: {redraws.current}
         </Typography>
     )
 }
 
 type LogFeedProps = {
-    messages: string[]
+    messages: SerialMessage[]
 }
 
 // LogFeed component renders a FixedSizeList
@@ -53,7 +47,7 @@ const LogFeed = (props: LogFeedProps) => {
             <FixedSizeList
                 width={500}
                 height={500}
-                itemData={messages}
+                itemData={messages.map((v) => v.message)}
                 itemSize={46}
                 itemCount={messages.length}
             >
@@ -63,16 +57,12 @@ const LogFeed = (props: LogFeedProps) => {
     )
 }
 
-const SocketNotReady = (r: ReadyState): boolean => {
-    return r !== ReadyState.OPEN
-}
-
-interface AlertSnackbarProps {
+interface AlertShieldProps {
     open: ReadyState
 }
 
-// displays an alert with socket connection status
-const SocketStatusAlert = ({ open }: AlertSnackbarProps) => {
+// displays an alert shield with socket connection status
+const SocketStatusAlert = ({ open }: AlertShieldProps) => {
     const connectionStatus = {
         [ReadyState.CONNECTING]: 'Connecting',
         [ReadyState.OPEN]: 'Open',
@@ -92,38 +82,23 @@ const SocketStatusAlert = ({ open }: AlertSnackbarProps) => {
     </Alert>
 }
 
+interface FeedProps {
+    maxEntries?: number
+}
+
 // Feed component renders log feed
 // it state is associated with the websocket
-const Feed = () => {
-    const [messageHistory, setMessageHistory] = useState<string[]>([])
-    const [sockUrl, setSockUrl] = useState(defaultAddr)
-    const [serial, setSerial] = useState("COM5")
-    const shouldReconnect = useRef(true)
-    // const { ready, message, ws, toggleOpen } = useContext(WebsocketContext)
-    const { sendMessage, lastMessage, readyState } = useWebSocket(
-        sockUrl,
-        { shouldReconnect: (c: CloseEvent) => shouldReconnect.current === true }
-    )
+const Feed = ({ maxEntries }: FeedProps) => {
+    const [snackbar, setSnackbar] = React.useState(false)
+    const [messageHistory, setMessageHistory] = useState<SerialMessage[]>([])
+    const { readyState, lastMessage, accessible } = useContext(GlobalStateContext)
 
-    const defaultRequest = (x: Partial<SocketRequest>) => {
-        return JSON.stringify({
-            method: 'read', timeout: 2 * secondInGolang,
-            baudrate: 115200, serial: serial,
-            ...x,
-        })
-    }
-
-    // auto-discover connections on reconnects
-    // try asap and later in intervals (in order to keep the
-    // connection active too)
+    // display snackbar each time there are no
+    // serials accessible
     useEffect(() => {
-        if (SocketNotReady(readyState)) return
-        sendMessage(defaultRequest({ method: 'discover' }))
-        const id = setInterval(() => {
-            sendMessage(defaultRequest({ method: 'discover' }))
-        }, 10000)
-        return () => clearInterval(id)
-    }, [sockUrl, sendMessage, readyState])
+        if (accessible.length > 0) return
+        setSnackbar(true)
+    }, [accessible])
 
     // populate array of messages from producer
     useEffect(() => {
@@ -132,36 +107,29 @@ const Feed = () => {
             // also skip duplicate messages: this is a dirty hack
             // around react's strict mode to remove duplicate
             // entries in feed
-            if (old.length > 0 && lastMessage.data === old.at(-1)) {
+            if (old.length > 0 && lastMessage.iat === old.at(-1)?.iat) {
                 console.warn('duplicate message', lastMessage)
                 return old
             }
-            console.log('updates messages', lastMessage, lastMessage.data)
-            if (old.length == maxEntries) {
+            console.log('updates messages', lastMessage)
+            if (old.length == (maxEntries || 10)) {
                 old.shift()
             }
-            return old.concat(lastMessage.data)
+            return old.concat(lastMessage)
         })
     }, [lastMessage, setMessageHistory])
 
-    const handleDiscover = () => {
-        if (SocketNotReady(readyState)) return console.warn('send failed: not ready yet', readyState)
-        console.log("sends into socket")
-        sendMessage(defaultRequest({ method: 'discover' }))
-    }
+    const onSnackbarClose = useCallback(() => setSnackbar(false), [])
 
     return (
         <Card>
             <Redraws name='feed' />
-            {/* <Button onClick={SocketNotReady(readyState) ? handleConnect : handleDisconnect}>
-                {!SocketNotReady(readyState) ? "Pause" : "Resume"}
-            </Button> */}
-            <Button
-                onClick={handleDiscover}
-                disabled={SocketNotReady(readyState)}
-            >
-                Refresh connections
-            </Button>
+            <Controls readyState={readyState} />
+            {/* if there are no accessible serials, open snackbar */}
+            {accessible.length === 0 &&
+                <AlertSnackbar open={snackbar} onClose={onSnackbarClose} />
+            }
+            <SerialSelectorDropdown serials={accessible.sort()} />
             <SocketStatusAlert open={readyState} />
             <LogFeed messages={messageHistory} />
         </Card>
@@ -169,3 +137,23 @@ const Feed = () => {
 }
 
 export default Feed
+
+// This snackbar appears once there are no serial connections
+// accessible
+type AlertSnackbarProps = {
+    open: boolean
+    onClose: () => void
+}
+
+const AlertSnackbar = React.memo(({ open, onClose }: AlertSnackbarProps) => {
+    return <Snackbar
+        open={open}
+        autoHideDuration={2000}
+        anchorOrigin={{vertical: 'top', horizontal: 'center'}}
+        onClose={onClose}
+    >
+        <Alert severity='warning'>
+            No accessible serial connections!
+        </Alert>
+    </Snackbar>
+})
