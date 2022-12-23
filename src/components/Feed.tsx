@@ -1,5 +1,5 @@
-import { Alert, AlertColor, Card, ListItem, ListItemText, Snackbar, Typography } from '@mui/material'
-import React, { useCallback } from 'react'
+import { Alert, AlertColor, Card, ListItem, ListItemText, Snackbar, SnackbarProps, Typography } from '@mui/material'
+import React from 'react'
 import { useContext, useEffect, useRef, useState } from 'react'
 import { ReadyState } from 'react-use-websocket'
 import { FixedSizeList, ListChildComponentProps } from 'react-window'
@@ -31,8 +31,7 @@ type LogFeedProps = {
 
 // LogFeed component renders a FixedSizeList
 // of elements provided by parent
-const LogFeed = (props: LogFeedProps) => {
-    const { messages } = props
+const LogFeed = ({ messages }: LogFeedProps) => {
     const renderRows = (p: ListChildComponentProps<string[]>) => {
         const { index, style, data } = p
         return (
@@ -62,6 +61,7 @@ interface AlertShieldProps {
 }
 
 // displays an alert shield with socket connection status
+// changes severity based on current status
 const SocketStatusAlert = ({ open }: AlertShieldProps) => {
     const connectionStatus = {
         [ReadyState.CONNECTING]: 'Connecting',
@@ -119,7 +119,7 @@ const Feed = ({ maxEntries }: FeedProps) => {
         })
     }, [lastMessage, setMessageHistory])
 
-    const onSnackbarClose = useCallback(() => setSnackbar(false), [])
+    const onSnackbarClose = React.useCallback(() => setSnackbar(false), [])
 
     return (
         <Card>
@@ -140,16 +140,11 @@ export default Feed
 
 // This snackbar appears once there are no serial connections
 // accessible
-type AlertSnackbarProps = {
-    open: boolean
-    onClose: () => void
-}
-
-const AlertSnackbar = React.memo(({ open, onClose }: AlertSnackbarProps) => {
+const AlertSnackbar = React.memo(({ open, onClose }: SnackbarProps) => {
     return <Snackbar
         open={open}
         autoHideDuration={2000}
-        anchorOrigin={{vertical: 'top', horizontal: 'center'}}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         onClose={onClose}
     >
         <Alert severity='warning'>

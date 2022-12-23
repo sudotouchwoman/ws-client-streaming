@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from "react"
+import React, { PropsWithChildren } from "react"
 import useWebSocket, { ReadyState, SendMessage } from "react-use-websocket"
 import { ErrorMessage, isDiscoveryMessage, isErrorMessage, isSerialMessage, isSocketMessage, SerialMessage } from "./messages"
 
@@ -71,7 +71,7 @@ interface SockDispatchable {
 // default stub for global dispatch context
 const DefaultGlobalDispatcher: SockDispatchable = {
     discover() { },
-    perform(s) { },
+    perform(_) { },
     sendMessage: () => { },
 }
 
@@ -86,12 +86,8 @@ export const GlobalStateContext = React.createContext<GlobalState>(DefaultGlobal
 // which can mutate global state
 export const GlobalDispatcherContext = React.createContext<SockDispatchable>(DefaultGlobalDispatcher)
 
-type SockContextProviderProps = {
-    children: React.ReactNode
-}
-
 // wraps WebSocketContext.Provider and tracks its state
-const SocketContextProvider = ({ children }: SockContextProviderProps) => {
+const SocketContextProvider = ({ children }: PropsWithChildren) => {
     const [state, setState] = React.useState<SerialState>(
         { accessible: [], lastError: null, lastMessage: null }
     )
@@ -100,14 +96,22 @@ const SocketContextProvider = ({ children }: SockContextProviderProps) => {
         contextRef.current.url,
         { shouldReconnect: (_) => contextRef.current.shouldReconnect === true }
     )
-    const discover = useCallback(() => {
+    const discover = React.useCallback(() => {
         console.log("discovers connections")
         sendMessage(defaultRequest({}))
     }, [readyState, sendMessage, contextRef.current.url])
 
-    useEffect(() => {
+    React.useEffect(() => {
         console.log(state)
     })
+
+    React.useEffect(() => {
+        // drop the list of accessible serials
+        // if on discovery none was found
+        if (SocketNotReady(readyState)) {
+            setState((o) => { return { ...o, accessible: [] } })
+        }
+    }, [readyState, contextRef.current.url])
 
     // handle socket message based on its type
     const handleSocketMessage = (m: any) => {
@@ -136,7 +140,7 @@ const SocketContextProvider = ({ children }: SockContextProviderProps) => {
     // side effects: whenever new message has arrived,
     // parse it and decide which of the serials to update
     // hence this logic is abstracted by this component
-    useEffect(() => {
+    React.useEffect(() => {
         if (!lastJsonMessage) return
         if (!isSocketMessage(lastJsonMessage)) return console.warn("unknown message:", lastJsonMessage)
         handleSocketMessage(lastJsonMessage)

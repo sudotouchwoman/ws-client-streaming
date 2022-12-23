@@ -1,4 +1,4 @@
-import Button from '@mui/material/Button'
+import Button, { ButtonProps } from '@mui/material/Button'
 import React from 'react'
 import { ReadyState } from 'react-use-websocket'
 import { GlobalDispatcherContext, SocketNotReady } from '../contexts/WebSocket/WebSocketContext'
@@ -20,22 +20,26 @@ const Controls = ({ readyState }: Props) => {
         return () => clearInterval(id)
     }, [discover, readyState])
 
-    const handleDiscover = () => {
+    const handleDiscover = React.useCallback(() => {
         if (SocketNotReady(readyState)) return console.warn('send failed: not ready yet', readyState)
         console.log("sends into socket")
         discover()
-    }
+    }, [readyState, discover])
 
     return (
         <React.Fragment>
-            <Button
+            <RefreshButton
                 onClick={handleDiscover}
                 disabled={SocketNotReady(readyState)}
-            >
-                Refresh connections
-            </Button>
+            />
         </React.Fragment>
     )
 }
+
+const RefreshButton = React.memo((props: ButtonProps) => {
+    return <Button {...props}>
+        Refresh connections
+    </Button>
+})
 
 export default Controls
