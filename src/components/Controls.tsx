@@ -1,7 +1,10 @@
-import Button, { ButtonProps } from '@mui/material/Button'
 import React from 'react'
+import Button, { ButtonProps } from '@mui/material/Button'
+import { Sync } from '@mui/icons-material'
 import { ReadyState } from 'react-use-websocket'
 import { GlobalDispatcherContext, SocketNotReady } from '../contexts/WebSocket/WebSocketContext'
+
+const DefaultDiscoverInterval = 10000
 
 type Props = {
     readyState: ReadyState
@@ -15,16 +18,15 @@ const Controls = ({ readyState }: Props) => {
     // connection active too)
     React.useEffect(() => {
         if (SocketNotReady(readyState)) return
-        discover()
-        const id = setInterval(discover, 10000)
+        const id = setInterval(discover, DefaultDiscoverInterval)
         return () => clearInterval(id)
-    }, [discover, readyState])
+    }, [discover])
 
     const handleDiscover = React.useCallback(() => {
         if (SocketNotReady(readyState)) return console.warn('send failed: not ready yet', readyState)
         console.log("sends into socket")
         discover()
-    }, [readyState, discover])
+    }, [discover])
 
     return (
         <React.Fragment>
@@ -38,7 +40,7 @@ const Controls = ({ readyState }: Props) => {
 
 const RefreshButton = React.memo((props: ButtonProps) => {
     return <Button {...props}>
-        Refresh connections
+        <Sync/>
     </Button>
 })
 

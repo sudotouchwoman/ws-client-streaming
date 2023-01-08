@@ -1,12 +1,12 @@
 import { Alert, AlertColor, Card, ListItem, ListItemText, Snackbar, SnackbarProps, Typography } from '@mui/material'
 import React from 'react'
-import { useContext, useEffect, useRef, useState } from 'react'
 import { ReadyState } from 'react-use-websocket'
 import { FixedSizeList, ListChildComponentProps } from 'react-window'
 import { SerialMessage } from '../contexts/WebSocket/messages'
 import { GlobalStateContext } from '../contexts/WebSocket/WebSocketContext'
+import ConnPopup from './ConnPopup'
 import Controls from './Controls'
-import SerialSelectorDropdown from './SerialDropdown'
+import SerialSelectorDropdown, { ConnectDispatcher } from './SerialDropdown'
 
 type RedrawProps = {
     name: string
@@ -14,8 +14,8 @@ type RedrawProps = {
 
 // helper component to debug component re-renders
 export const Redraws = ({ name }: RedrawProps) => {
-    const redraws = useRef(0)
-    useEffect(() => {
+    const redraws = React.useRef(0)
+    React.useEffect(() => {
         redraws.current += 1
     })
     return (
@@ -32,14 +32,6 @@ type LogFeedProps = {
 // LogFeed component renders a FixedSizeList
 // of elements provided by parent
 const LogFeed = ({ messages }: LogFeedProps) => {
-    const renderRows = (p: ListChildComponentProps<string[]>) => {
-        const { index, style, data } = p
-        return (
-            <ListItem style={style} key={data[index]} component='div'>
-                <ListItemText primary={data[index]} />
-            </ListItem>
-        )
-    }
     return (
         <>
             <Redraws name='log-feed' />
@@ -50,7 +42,14 @@ const LogFeed = ({ messages }: LogFeedProps) => {
                 itemSize={46}
                 itemCount={messages.length}
             >
-                {renderRows}
+                {(p: ListChildComponentProps<string[]>) => {
+                    const { index, style, data } = p
+                    return (
+                        <ListItem style={style} key={data[index]} component='div'>
+                            <ListItemText primary={data[index]} />
+                        </ListItem>
+                    )
+                }}
             </FixedSizeList>
         </>
     )
@@ -86,52 +85,64 @@ interface FeedProps {
     maxEntries?: number
 }
 
+type FeedState = {
+    messagesHistory: SerialMessage[]
+    dialogOpen: boolean
+    connSelected: string | null
+}
+
 // Feed component renders log feed
 // it state is associated with the websocket
 const Feed = ({ maxEntries }: FeedProps) => {
-    const [snackbar, setSnackbar] = React.useState(false)
-    const [messageHistory, setMessageHistory] = useState<SerialMessage[]>([])
-    const { readyState, lastMessage, accessible } = useContext(GlobalStateContext)
-
-    // display snackbar each time there are no
-    // serials accessible
-    useEffect(() => {
-        if (accessible.length > 0) return
-        setSnackbar(true)
-    }, [accessible])
+    const [state, setState] = React.useState<FeedState>({
+        messagesHistory: [],
+        dialogOpen: false,
+        connSelected: null
+    })
+    const { readyState, lastMessage, accessible } = React.useContext(GlobalStateContext)
 
     // populate array of messages from producer
-    useEffect(() => {
-        setMessageHistory((old) => {
+    React.useEffect(() => {
+        setState((old) => {
             if (!lastMessage) return old // skip null messages
             // also skip duplicate messages: this is a dirty hack
             // around react's strict mode to remove duplicate
             // entries in feed
-            if (old.length > 0 && lastMessage.iat === old.at(-1)?.iat) {
+            if (old.messagesHistory.length > 0 && lastMessage.iat === old.messagesHistory.at(-1)?.iat) {
                 console.warn('duplicate message', lastMessage)
                 return old
             }
             console.log('updates messages', lastMessage)
-            if (old.length == (maxEntries || 10)) {
-                old.shift()
+            if (old.messagesHistory.length == (maxEntries || 10)) {
+                old.messagesHistory.shift()
             }
-            return old.concat(lastMessage)
+            return { ...old, messagesHistory: old.messagesHistory.concat(lastMessage) }
         })
-    }, [lastMessage, setMessageHistory])
+    }, [lastMessage])
 
-    const onSnackbarClose = React.useCallback(() => setSnackbar(false), [])
+    // will open dialog
+    const dispatcher = React.useMemo((): ConnectDispatcher => {
+        return {
+            dispatch: (some) => {
+                console.log(`you clicked ${some}`)
+                setState((old) => { return { ...old, dialogOpen: true, connSelected: some } })
+            }
+        }
+    }, [setState])
+
+    const handleDialogClose = React.useMemo(() => () => {
+        setState((old) => { return { ...old, dialogOpen: false } })
+    }, [setState])
 
     return (
         <Card>
             <Redraws name='feed' />
             <Controls readyState={readyState} />
-            {/* if there are no accessible serials, open snackbar */}
-            {accessible.length === 0 &&
-                <AlertSnackbar open={snackbar} onClose={onSnackbarClose} />
-            }
-            <SerialSelectorDropdown serials={accessible.sort()} />
+            {accessible.length === 0 && <AlertSnackbar />}
+            {state.dialogOpen && state.connSelected && <ConnPopup conn={state.connSelected} onClose={handleDialogClose}/>}
+            <SerialSelectorDropdown serials={accessible.sort()} dispatcher={dispatcher} />
             <SocketStatusAlert open={readyState} />
-            <LogFeed messages={messageHistory} />
+            <LogFeed messages={state.messagesHistory} />
         </Card>
     )
 }
@@ -140,12 +151,13 @@ export default Feed
 
 // This snackbar appears once there are no serial connections
 // accessible
-const AlertSnackbar = React.memo(({ open, onClose }: SnackbarProps) => {
+const AlertSnackbar = React.memo(() => {
+    const [closed, setClosed] = React.useState(false)
     return <Snackbar
-        open={open}
+        open={!closed}
         autoHideDuration={2000}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        onClose={onClose}
+        onClose={() => setClosed(true)}
     >
         <Alert severity='warning'>
             No accessible serial connections!

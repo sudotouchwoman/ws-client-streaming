@@ -127,13 +127,6 @@ const SocketContextProvider = ({ children }: PropsWithChildren) => {
         if (isSerialMessage(m)) {
             console.log("got message", m)
             return setState((s) => { return { ...s, lastMessage: m } })
-            // 
-            // const getProperty= <T,K extends keyof T>(obj: T, key: K) => {
-            //     return obj[key]
-            // }
-            // const serial = getProperty(contextRef.current.subscribed, m.serial)
-            // if (!serial) return console.warn(m.serial, "got message without being subbed to")
-            // serial.lastMessage = m.message
         }
     }
 

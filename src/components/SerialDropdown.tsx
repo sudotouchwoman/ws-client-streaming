@@ -10,10 +10,15 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 
 import { Redraws } from './Feed'
 
+export interface ConnectDispatcher {
+    dispatch(name: string): void
+}
+
 // control pane displays a dropdown menu
 // with accessible serial connections
 type SerialPaneProps = {
     serials: string[]
+    dispatcher: ConnectDispatcher
 }
 
 const lowercaseButtonTheme = createTheme({
@@ -25,13 +30,13 @@ const lowercaseButtonTheme = createTheme({
 })
 
 // Dropdown menu with serial connections
-const SerialSelectorDropdown = React.memo(({ serials }: SerialPaneProps) => {
+const SerialSelectorDropdown = React.memo(({ serials, dispatcher }: SerialPaneProps) => {
     const [selectedIndex, setSelectedIndex] = React.useState(0);
     const [open, setOpen] = React.useState(false)
     const anchorRef = React.useRef<HTMLDivElement>(null);
 
     const handleClick = () => {
-        console.info(`You clicked ${serials[selectedIndex]}`);
+        dispatcher.dispatch(serials[selectedIndex])
     };
 
     const handleMenuItemClick = (
