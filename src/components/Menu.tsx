@@ -18,7 +18,7 @@ const Menu = (props: MenuProps) => {
             Main app content here
           </Typography>
           <Redraws name='container' />
-          <Feed />
+          <Feed maxEntries={20}/>
         </Container>
       </SocketContextProvider>
     </React.StrictMode>

@@ -21,7 +21,7 @@ const DefaultSockRequest: SocketRequest = {
     method: 'discover',
     serial: '',
     baudrate: 115200,
-    timeout: secondInGolang
+    timeout: 1
 }
 
 // state of context provider
@@ -76,7 +76,8 @@ const DefaultGlobalDispatcher: SockDispatchable = {
 }
 
 export const defaultRequest = (x: Partial<SocketRequest>) => {
-    return JSON.stringify({ ...DefaultSockRequest, ...x })
+    const timeout = x?.timeout || DefaultSockRequest.timeout
+    return JSON.stringify({ ...DefaultSockRequest, ...x, timeout: timeout * secondInGolang })
 }
 
 // context consumed by child components
@@ -99,6 +100,13 @@ const SocketContextProvider = ({ children }: PropsWithChildren) => {
     const discover = React.useCallback(() => {
         console.log("discovers connections")
         sendMessage(defaultRequest({}))
+    }, [readyState, sendMessage, contextRef.current.url])
+
+    const perform = React.useMemo(() => {
+        return (s: SocketRequest) => {
+            console.log("performs", s)
+            sendMessage(defaultRequest(s))
+        }
     }, [readyState, sendMessage, contextRef.current.url])
 
     React.useEffect(() => {
@@ -150,7 +158,7 @@ const SocketContextProvider = ({ children }: PropsWithChildren) => {
             <GlobalDispatcherContext.Provider value={
                 {
                     discover: discover,
-                    perform: (s) => console.log("performs", s),
+                    perform: perform,
                     sendMessage: sendMessage,
                 }
             }>

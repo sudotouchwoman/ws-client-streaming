@@ -1,4 +1,4 @@
-import { Alert, AlertColor, Card, ListItem, ListItemText, Snackbar, SnackbarProps, Typography } from '@mui/material'
+import { Alert, AlertColor, Card, ListItemButton, ListItemText, Snackbar, Typography } from '@mui/material'
 import React from 'react'
 import { ReadyState } from 'react-use-websocket'
 import { FixedSizeList, ListChildComponentProps } from 'react-window'
@@ -38,16 +38,17 @@ const LogFeed = ({ messages }: LogFeedProps) => {
             <FixedSizeList
                 width={500}
                 height={500}
-                itemData={messages.map((v) => v.message)}
+                itemData={messages}
                 itemSize={46}
                 itemCount={messages.length}
             >
-                {(p: ListChildComponentProps<string[]>) => {
+                {(p: ListChildComponentProps<SerialMessage[]>) => {
                     const { index, style, data } = p
+                    const line = data[index]
                     return (
-                        <ListItem style={style} key={data[index]} component='div'>
-                            <ListItemText primary={data[index]} />
-                        </ListItem>
+                        <ListItemButton style={style} key={line.iat} component='div'>
+                            <ListItemText primary={`[${line.serial}] ${line.iat} ${line.message}`} />
+                        </ListItemButton>
                     )
                 }}
             </FixedSizeList>
@@ -120,6 +121,14 @@ const Feed = ({ maxEntries }: FeedProps) => {
         })
     }, [lastMessage])
 
+    const hasAccessible = accessible.length !== 0
+
+    React.useEffect(() => {
+        if (state.connSelected === null) return
+        if (accessible.includes(state.connSelected)) return
+        setState((old) => { return { ...old, dialogOpen: false } })
+    }, [accessible])
+
     // will open dialog
     const dispatcher = React.useMemo((): ConnectDispatcher => {
         return {
@@ -138,8 +147,8 @@ const Feed = ({ maxEntries }: FeedProps) => {
         <Card>
             <Redraws name='feed' />
             <Controls readyState={readyState} />
-            {accessible.length === 0 && <AlertSnackbar />}
-            {state.dialogOpen && state.connSelected && <ConnPopup conn={state.connSelected} onClose={handleDialogClose}/>}
+            {!hasAccessible && <AlertSnackbar />}
+            <ConnPopup conn={state.connSelected || ""} onClose={handleDialogClose} open={state.dialogOpen} />
             <SerialSelectorDropdown serials={accessible.sort()} dispatcher={dispatcher} />
             <SocketStatusAlert open={readyState} />
             <LogFeed messages={state.messagesHistory} />

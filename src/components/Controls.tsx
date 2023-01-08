@@ -33,14 +33,15 @@ const Controls = ({ readyState }: Props) => {
             <RefreshButton
                 onClick={handleDiscover}
                 disabled={SocketNotReady(readyState)}
+                disableElevation
             />
         </React.Fragment>
     )
 }
 
 const RefreshButton = React.memo((props: ButtonProps) => {
-    return <Button {...props}>
-        <Sync/>
+    return <Button {...props} startIcon={<Sync/>} variant='contained'>
+        Refresh
     </Button>
 })
 
