@@ -1,4 +1,4 @@
-import { Alert, AlertColor, Card, ListItemButton, ListItemText, Snackbar, Typography } from '@mui/material'
+import { Alert, AlertColor, Card, Chip, ListItem, ListItemButton, ListItemText, Snackbar, Tooltip, Typography } from '@mui/material'
 import React from 'react'
 import { ReadyState } from 'react-use-websocket'
 import { FixedSizeList, ListChildComponentProps } from 'react-window'
@@ -36,7 +36,7 @@ const LogFeed = ({ messages }: LogFeedProps) => {
         <>
             <Redraws name='log-feed' />
             <FixedSizeList
-                width={500}
+                width='100%'
                 height={500}
                 itemData={messages}
                 itemSize={46}
@@ -45,10 +45,16 @@ const LogFeed = ({ messages }: LogFeedProps) => {
                 {(p: ListChildComponentProps<SerialMessage[]>) => {
                     const { index, style, data } = p
                     const line = data[index]
+                    const ts = new Date(line.iat).toTimeString()
                     return (
-                        <ListItemButton style={style} key={line.iat} component='div'>
-                            <ListItemText primary={`[${line.serial}] ${line.iat} ${line.message}`} />
-                        </ListItemButton>
+                        <ListItem style={style} key={line.iat} component='div'>
+                            <Tooltip title={ts} placement='left-end'>
+                                <Chip label={line.serial} />
+                            </Tooltip>
+                            <ListItemButton>
+                                <ListItemText primary={`${line.message}`} />
+                            </ListItemButton>
+                        </ListItem>
                     )
                 }}
             </FixedSizeList>
@@ -144,7 +150,7 @@ const Feed = ({ maxEntries }: FeedProps) => {
     }, [setState])
 
     return (
-        <Card>
+        <Card elevation={0}>
             <Redraws name='feed' />
             <Controls readyState={readyState} />
             {!hasAccessible && <AlertSnackbar />}
