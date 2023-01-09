@@ -61,15 +61,12 @@ const SerialSelectorDropdown = React.memo(({ serials, dispatcher }: SerialPanePr
     const disabled = serials.length === 0
 
     return (
-        // <Card>
         <ThemeProvider theme={lowercaseButtonTheme}>
             <Redraws name='control pane' />
-            Serial Control pane
             <ButtonGroup variant="contained" ref={anchorRef} aria-label="serial button" disableElevation>
                 <Button onClick={handleClick} disabled={disabled}>{serials[selectedIndex]}</Button>
                 <Button
                     disabled={disabled}
-                    size="small"
                     aria-controls={open ? 'serial-selector-menu' : undefined}
                     aria-expanded={open ? 'true' : undefined}
                     aria-label="select connection to open"
@@ -116,7 +113,6 @@ const SerialSelectorDropdown = React.memo(({ serials, dispatcher }: SerialPanePr
                 )}
             </Popper>
         </ThemeProvider>
-        // </Card>
     )
 })
 

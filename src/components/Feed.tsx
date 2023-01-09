@@ -1,4 +1,4 @@
-import { Alert, AlertColor, Card, Chip, ListItem, ListItemButton, ListItemText, Snackbar, Tooltip, Typography } from '@mui/material'
+import { Alert, AlertColor, Card, Chip, ListItemButton, ListItemText, Snackbar, Stack, Tooltip, Typography } from '@mui/material'
 import React from 'react'
 import { ReadyState } from 'react-use-websocket'
 import { FixedSizeList, ListChildComponentProps } from 'react-window'
@@ -66,24 +66,30 @@ const LogFeedItem = React.memo((p: ListChildComponentProps<SerialMessage[]>) => 
     const line = data[index]
     const ts = new Date(line.iat).toTimeString()
     return (
-        <ListItem style={style} key={line.iat} component='div'>
+        <ListItemButton
+            style={style}
+            key={line.iat}
+            component='div'
+            disableRipple
+        >
             <Tooltip title={ts} placement='left-end'>
                 <Chip label={line.serial} />
             </Tooltip>
-            <ListItemButton>
-                <ListItemText primary={`${line.message}`} />
-            </ListItemButton>
-        </ListItem>
+            <ListItemText
+                primary={line.message}
+                sx={{ paddingLeft: '10px' }}
+            />
+        </ListItemButton>
     )
 })
 
-interface AlertShieldProps {
+interface SocketStatusAlertProps {
     open: ReadyState
 }
 
 // displays an alert shield with socket connection status
 // changes severity based on current status
-const SocketStatusAlert = ({ open }: AlertShieldProps) => {
+const SocketStatusAlert = React.memo(({ open }: SocketStatusAlertProps) => {
     const connectionStatus = {
         [ReadyState.CONNECTING]: 'Connecting',
         [ReadyState.OPEN]: 'Open',
@@ -99,13 +105,15 @@ const SocketStatusAlert = ({ open }: AlertShieldProps) => {
     }
 
     return <Alert severity={severity(open)}>
-        Websocket connection status: {connectionStatus}
+        Websocket: {connectionStatus}
     </Alert>
-}
+})
 
 interface FeedProps {
     maxEntries?: number
 }
+
+const defaultMaxEntries = 10
 
 type FeedState = {
     messagesHistory: SerialMessage[]
@@ -135,7 +143,7 @@ const Feed = ({ maxEntries }: FeedProps) => {
                 return old
             }
             console.log('updates messages', lastMessage)
-            if (old.messagesHistory.length == (maxEntries || 10)) {
+            if (old.messagesHistory.length == (maxEntries || defaultMaxEntries)) {
                 old.messagesHistory.shift()
             }
             return { ...old, messagesHistory: old.messagesHistory.concat(lastMessage) }
@@ -165,13 +173,19 @@ const Feed = ({ maxEntries }: FeedProps) => {
     }, [setState])
 
     return (
-        <Card elevation={0}>
+        <Card elevation={0} sx={{ padding: '10px' }}>
             <Redraws name='feed' />
-            <Controls readyState={readyState} />
             {!hasAccessible && <AlertSnackbar />}
+            <Stack
+                direction='row'
+                justifyContent='center'
+                spacing={1}
+            >
+                <SerialSelectorDropdown serials={accessible.sort()} dispatcher={dispatcher} />
+                <Controls readyState={readyState} />
+                <SocketStatusAlert open={readyState} />
+            </Stack>
             <ConnPopup conn={state.connSelected || ""} onClose={handleDialogClose} open={state.dialogOpen} />
-            <SerialSelectorDropdown serials={accessible.sort()} dispatcher={dispatcher} />
-            <SocketStatusAlert open={readyState} />
             <LogFeed messages={state.messagesHistory} />
         </Card>
     )
