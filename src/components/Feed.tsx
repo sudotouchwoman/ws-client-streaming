@@ -30,8 +30,12 @@ type LogFeedProps = {
 }
 
 // LogFeed component renders a FixedSizeList
-// of elements provided by parent
-const LogFeed = ({ messages }: LogFeedProps) => {
+// of elements provided by parent.
+// Memoize it to only rerender once there is a new message
+// using a custom areEqual predicate!
+// P.S. Glad to see that React supports this feature as
+// array comparison sometimes does not work the expected way
+const LogFeed = React.memo(({ messages }: LogFeedProps) => {
     return (
         <>
             <Redraws name='log-feed' />
@@ -42,25 +46,36 @@ const LogFeed = ({ messages }: LogFeedProps) => {
                 itemSize={46}
                 itemCount={messages.length}
             >
-                {(p: ListChildComponentProps<SerialMessage[]>) => {
-                    const { index, style, data } = p
-                    const line = data[index]
-                    const ts = new Date(line.iat).toTimeString()
-                    return (
-                        <ListItem style={style} key={line.iat} component='div'>
-                            <Tooltip title={ts} placement='left-end'>
-                                <Chip label={line.serial} />
-                            </Tooltip>
-                            <ListItemButton>
-                                <ListItemText primary={`${line.message}`} />
-                            </ListItemButton>
-                        </ListItem>
-                    )
-                }}
+                {LogFeedItem}
             </FixedSizeList>
         </>
     )
-}
+}, (prev, next) => {
+    // predicate to check whether props have changed
+    if (prev.messages.length !== next.messages.length) return false
+    for (let idx = 0; idx < prev.messages.length; idx++) {
+        if (prev.messages[idx] !== next.messages[idx]) return false
+    }
+    return true
+})
+
+// Memoize items to avoid tooltip misbehavior (otherwise it
+// reappears on each rerender when hovering on a fixed item)
+const LogFeedItem = React.memo((p: ListChildComponentProps<SerialMessage[]>) => {
+    const { index, style, data } = p
+    const line = data[index]
+    const ts = new Date(line.iat).toTimeString()
+    return (
+        <ListItem style={style} key={line.iat} component='div'>
+            <Tooltip title={ts} placement='left-end'>
+                <Chip label={line.serial} />
+            </Tooltip>
+            <ListItemButton>
+                <ListItemText primary={`${line.message}`} />
+            </ListItemButton>
+        </ListItem>
+    )
+})
 
 interface AlertShieldProps {
     open: ReadyState
