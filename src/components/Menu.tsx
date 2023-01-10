@@ -11,7 +11,7 @@ const Menu: React.FC<MenuProps> = (props) => {
       <CssBaseline />
       <SocketContextProvider>
         <Container sx={{
-          bgcolor: 'gainsboro',
+          bgcolor: '#78909c',
           py: 10
         }} >
           <Typography variant='body1'>

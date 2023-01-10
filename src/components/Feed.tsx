@@ -1,5 +1,6 @@
-import { Alert, AlertColor, Card, Chip, ListItemButton, ListItemText, Snackbar, Stack, Tooltip } from '@mui/material'
+import { Alert, AlertColor, Card, Chip, Collapse, Divider, List, ListItem, ListItemText, Slide, Snackbar, Stack, Tooltip } from '@mui/material'
 import React from 'react'
+import { TransitionGroup } from 'react-transition-group'
 import { ReadyState } from 'react-use-websocket'
 import { FixedSizeList, ListChildComponentProps } from 'react-window'
 import { SerialMessage } from '../contexts/WebSocket/messages'
@@ -17,13 +18,30 @@ export const Redraws: React.FC<RedrawProps> = ({ name }) => {
     React.useEffect(() => {
         redraws.current += 1
     })
-    return (
-        <Chip label={name + ':' + redraws.current} />
-        // <Typography variant='body1'>
-        //     {name} redraws: {redraws.current}
-        // </Typography>
-    )
+    return <Chip label={name + ':' + redraws.current} />
 }
+
+// const LogFeedItemMUI: React.FC<{ line: SerialMessage }> = React.memo(({ line }) => {
+    //     const ts = new Date(line.iat).toTimeString()
+    //     const [open, setOpen] = React.useState(true)
+    //     const toggleExpand = React.useCallback(() => setOpen((open) => !open), [])
+    
+    //     return (
+        //         <ListItem
+        //             key={line.iat}
+        //             alignItems='flex-start'
+        //         // component='div'
+        //         // disableRipple
+        //         // disableGutters
+        //         >
+        //             <Tooltip title={ts} placement='left-end'>
+        //                 <Chip label={line.serial} onClick={toggleExpand} />
+        //             </Tooltip>
+        //             <MultiLineText text={line.message} open={open} />
+        //             <Divider orientation='horizontal' />
+        //         </ListItem>
+        //     )
+// })
 
 type LogFeedProps = {
     messages: SerialMessage[]
@@ -37,6 +55,18 @@ type LogFeedProps = {
 // array comparison sometimes does not work the expected way
 const LogFeed = React.memo(({ messages }: LogFeedProps) => {
     return (
+        // <>
+        //     <Redraws name='log-feed' />
+        //     <List>
+        //         <TransitionGroup>
+        //             {messages.map((v, i) => (
+        //                 <Collapse key={i + v.iat}>
+        //                     <LogFeedItemMUI line={v} />
+        //                 </Collapse>
+        //             ))}
+        //         </TransitionGroup>
+        //     </List>
+        // </>
         <>
             <Redraws name='log-feed' />
             <FixedSizeList
@@ -56,6 +86,19 @@ const LogFeed = React.memo(({ messages }: LogFeedProps) => {
         prev.messages.every((v, i) => v === next.messages[i])
 })
 
+const MultiLineText: React.FC<{ text: string, open?: boolean }> =
+    React.memo(({ text, open = true }) => {
+        return (
+            <Collapse unmountOnExit in={open}>
+                <List component='div' disablePadding>
+                    {text.split("\n").map((i, key) => {
+                        return <ListItemText key={key}>{i}</ListItemText>;
+                    })}
+                </List>
+            </Collapse>
+        )
+    })
+
 // Memoize items to avoid tooltip misbehavior (otherwise it
 // reappears on each rerender when hovering on a fixed item)
 const LogFeedItem = React.memo((p: ListChildComponentProps<SerialMessage[]>) => {
@@ -63,20 +106,24 @@ const LogFeedItem = React.memo((p: ListChildComponentProps<SerialMessage[]>) => 
     const line = data[index]
     const ts = new Date(line.iat).toTimeString()
     return (
-        <ListItemButton
+        <ListItem
             style={style}
             key={line.iat}
-            component='div'
-            disableRipple
+        // component='div'
+        // disableRipple
+        // disableGutters
         >
             <Tooltip title={ts} placement='left-end'>
                 <Chip label={line.serial} />
             </Tooltip>
-            <ListItemText
-                primary={line.message}
+            <MultiLineText text={line.message} />
+            <Divider orientation='horizontal' />
+            {/* <ListItemText
+                primary={<MultiLineText text={line.message} />}
+                // primaryTypographyProps={{ style: { whiteSpace: "normal", wordWrap: "break-word" } }}
                 sx={{ paddingLeft: '10px' }}
-            />
-        </ListItemButton>
+            /> */}
+        </ListItem>
     )
 })
 
@@ -206,7 +253,6 @@ const Feed: React.FC<FeedProps> = ({ maxEntries = 10 }) => {
             <Card elevation={0} sx={{
                 p: '10px',
                 my: '10px',
-                // bgcolor: 'cadetblue'
             }}
             >
                 <InputArea
@@ -226,6 +272,7 @@ const AlertSnackbar = React.memo(() => {
     const [closed, setClosed] = React.useState(false)
     return <Snackbar
         open={!closed}
+        TransitionComponent={Slide}
         autoHideDuration={2000}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         onClose={() => setClosed(true)}

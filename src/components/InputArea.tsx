@@ -32,8 +32,6 @@ const InputArea: React.FC<Props> = React.memo(({ connSelected, active }) => {
     return (
         <>
             <Redraws name="input area" />
-            Input Area
-            Selected: {active && connSelected}
             <Grid container spacing={2}>
                 <Grid item xs={11}>
                     <TextInputArea
