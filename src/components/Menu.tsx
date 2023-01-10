@@ -1,11 +1,11 @@
 import { Container, CssBaseline, Typography } from '@mui/material'
 import React from 'react'
-import Feed, { Redraws } from './Feed'
 import SocketContextProvider from '../contexts/WebSocket/WebSocketContext'
+import Feed, { Redraws } from './Feed'
 
 type MenuProps = {}
 
-const Menu = (props: MenuProps) => {
+const Menu: React.FC<MenuProps> = (props) => {
   return (
     <React.StrictMode>
       <CssBaseline />

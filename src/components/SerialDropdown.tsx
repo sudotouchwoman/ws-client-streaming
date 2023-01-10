@@ -11,7 +11,8 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import { Redraws } from './Feed'
 
 export interface ConnectDispatcher {
-    dispatch(name: string): void
+    select(name: string): void
+    connect(name: string): void
 }
 
 // control pane displays a dropdown menu
@@ -36,7 +37,7 @@ const SerialSelectorDropdown = React.memo(({ serials, dispatcher }: SerialPanePr
     const anchorRef = React.useRef<HTMLDivElement>(null);
 
     const handleClick = () => {
-        dispatcher.dispatch(serials[selectedIndex])
+        dispatcher.connect(serials[selectedIndex])
     };
 
     const handleMenuItemClick = (
@@ -46,6 +47,7 @@ const SerialSelectorDropdown = React.memo(({ serials, dispatcher }: SerialPanePr
         // does this callback trigger two re-renders?
         setSelectedIndex(index);
         setOpen(false);
+        dispatcher.select(serials[index])
     };
 
     const handleClose = (event: Event) => {
@@ -99,7 +101,6 @@ const SerialSelectorDropdown = React.memo(({ serials, dispatcher }: SerialPanePr
                                     {serials.map((option, index) => (
                                         <MenuItem
                                             key={option}
-                                            // disabled={index === 2}
                                             selected={index === selectedIndex}
                                             onClick={(event) => handleMenuItemClick(event, index)}
                                         >

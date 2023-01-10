@@ -1,6 +1,6 @@
 import React, { PropsWithChildren } from "react"
 import useWebSocket, { ReadyState, SendMessage } from "react-use-websocket"
-import { ErrorMessage, isDiscoveryMessage, isErrorMessage, isSerialMessage, isSocketMessage, SerialMessage } from "./messages"
+import { ErrorMessage, isDiscoveryMessage, isErrorMessage, isSerialMessage, isSocketClientMessage, isSocketMessage, SerialMessage, SocketClientMessage } from "./messages"
 
 const defaultAddr = "ws://localhost:8080/ws"
 const secondInGolang = 1000000000
@@ -9,7 +9,7 @@ const secondInGolang = 1000000000
 // websocket server primarily expects messages
 // of this format
 export interface SocketRequest {
-    method: 'read' | 'list' | 'discover'
+    method: 'read' | 'discover'
     serial: string
     baudrate: number
     timeout: number
@@ -27,7 +27,7 @@ const DefaultSockRequest: SocketRequest = {
 // state of context provider
 // (it is easier not to add some attributes to the state,
 // like the discover method)
-interface WebSocketProps {
+interface WebSocketState {
     url: string
     shouldReconnect: boolean
     subscribed: string[]
@@ -45,7 +45,7 @@ interface SerialState {
 
 // represents a websocket connection and
 // aux attributes. Provided by WebSocketContext
-export interface GlobalState extends WebSocketProps, SerialState {
+export interface GlobalState extends WebSocketState, SerialState {
     readyState: ReadyState
 }
 
@@ -64,7 +64,7 @@ const DefaultGlobalStateContext: GlobalState = {
 // dispatcher context
 interface SockDispatchable {
     discover: () => void
-    perform: (s: SocketRequest) => void
+    perform: (s: SocketRequest | SocketClientMessage) => void
     sendMessage: SendMessage
 }
 
@@ -75,9 +75,23 @@ const DefaultGlobalDispatcher: SockDispatchable = {
     sendMessage: () => { },
 }
 
-export const defaultRequest = (x: Partial<SocketRequest>) => {
+// factory for requests emitted to server
+const requestFactory = (x: Partial<SocketRequest>) => {
     const timeout = x?.timeout || DefaultSockRequest.timeout
-    return JSON.stringify({ ...DefaultSockRequest, ...x, timeout: timeout * secondInGolang })
+    return JSON.stringify({
+        ...DefaultSockRequest,
+        ...x,
+        timeout: timeout * secondInGolang
+    })
+}
+
+// factory for messages emitted to server
+const messageFactory = (x: SocketClientMessage) => {
+    return JSON.stringify({
+        ...x,
+        method: 'send',
+        timeout: DefaultSockRequest.timeout * secondInGolang
+    })
 }
 
 // context consumed by child components
@@ -88,34 +102,30 @@ export const GlobalStateContext = React.createContext<GlobalState>(DefaultGlobal
 export const GlobalDispatcherContext = React.createContext<SockDispatchable>(DefaultGlobalDispatcher)
 
 // wraps WebSocketContext.Provider and tracks its state
-const SocketContextProvider = ({ children }: PropsWithChildren) => {
+const SocketContextProvider: React.FC<PropsWithChildren> = ({ children }) => {
     const [state, setState] = React.useState<SerialState>(
         { accessible: [], lastError: null, lastMessage: null }
     )
-    const contextRef = React.useRef<WebSocketProps>(DefaultGlobalStateContext)
+    const contextRef = React.useRef<WebSocketState>(DefaultGlobalStateContext)
     const { sendMessage, readyState, lastJsonMessage } = useWebSocket(
         contextRef.current.url,
         { shouldReconnect: (_) => contextRef.current.shouldReconnect === true }
     )
     const discover = React.useCallback(() => {
         console.log("discovers connections")
-        sendMessage(defaultRequest({}))
+        sendMessage(requestFactory({}))
     }, [readyState, sendMessage, contextRef.current.url])
 
-    const perform = React.useMemo(() => {
-        return (s: SocketRequest) => {
-            console.log("performs", s)
-            sendMessage(defaultRequest(s))
-        }
-    }, [readyState, sendMessage, contextRef.current.url])
-
-    React.useEffect(() => {
-        console.log(state)
-    })
+    const perform = React.useMemo(() => (s: SocketRequest | SocketClientMessage) => {
+        console.log("performs", s)
+        const message = isSocketClientMessage(s) ? messageFactory(s) : requestFactory(s)
+        sendMessage(message)
+    }, [sendMessage, contextRef.current.url])
 
     React.useEffect(() => {
         // drop the list of accessible serials
         // if on discovery none was found
+        console.log('ready state:', readyState)
         if (SocketNotReady(readyState)) {
             setState((o) => { return { ...o, accessible: [] } })
         }
@@ -142,6 +152,7 @@ const SocketContextProvider = ({ children }: PropsWithChildren) => {
     // parse it and decide which of the serials to update
     // hence this logic is abstracted by this component
     React.useEffect(() => {
+        console.log('new message:', lastJsonMessage)
         if (!lastJsonMessage) return
         if (!isSocketMessage(lastJsonMessage)) return console.warn("unknown message:", lastJsonMessage)
         handleSocketMessage(lastJsonMessage)

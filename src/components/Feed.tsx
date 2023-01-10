@@ -1,4 +1,4 @@
-import { Alert, AlertColor, Card, Chip, ListItemButton, ListItemText, Snackbar, Stack, Tooltip, Typography } from '@mui/material'
+import { Alert, AlertColor, Card, Chip, ListItemButton, ListItemText, Snackbar, Stack, Tooltip } from '@mui/material'
 import React from 'react'
 import { ReadyState } from 'react-use-websocket'
 import { FixedSizeList, ListChildComponentProps } from 'react-window'
@@ -6,22 +6,22 @@ import { SerialMessage } from '../contexts/WebSocket/messages'
 import { GlobalStateContext } from '../contexts/WebSocket/WebSocketContext'
 import ConnPopup from './ConnPopup'
 import Controls from './Controls'
+import InputArea from './InputArea'
 import SerialSelectorDropdown, { ConnectDispatcher } from './SerialDropdown'
 
-type RedrawProps = {
-    name: string
-}
+type RedrawProps = { name: string }
 
 // helper component to debug component re-renders
-export const Redraws = ({ name }: RedrawProps) => {
+export const Redraws: React.FC<RedrawProps> = ({ name }) => {
     const redraws = React.useRef(0)
     React.useEffect(() => {
         redraws.current += 1
     })
     return (
-        <Typography variant='body1'>
-            {name} redraws: {redraws.current}
-        </Typography>
+        <Chip label={name + ':' + redraws.current} />
+        // <Typography variant='body1'>
+        //     {name} redraws: {redraws.current}
+        // </Typography>
     )
 }
 
@@ -51,12 +51,9 @@ const LogFeed = React.memo(({ messages }: LogFeedProps) => {
         </>
     )
 }, (prev, next) => {
-    // predicate to check whether props have changed
-    if (prev.messages.length !== next.messages.length) return false
-    for (let idx = 0; idx < prev.messages.length; idx++) {
-        if (prev.messages[idx] !== next.messages[idx]) return false
-    }
-    return true
+    // predicate to check whether props are equal
+    return prev.messages.length === next.messages.length &&
+        prev.messages.every((v, i) => v === next.messages[i])
 })
 
 // Memoize items to avoid tooltip misbehavior (otherwise it
@@ -113,8 +110,6 @@ interface FeedProps {
     maxEntries?: number
 }
 
-const defaultMaxEntries = 10
-
 type FeedState = {
     messagesHistory: SerialMessage[]
     dialogOpen: boolean
@@ -123,13 +118,17 @@ type FeedState = {
 
 // Feed component renders log feed
 // it state is associated with the websocket
-const Feed = ({ maxEntries }: FeedProps) => {
+const Feed: React.FC<FeedProps> = ({ maxEntries = 10 }) => {
+    // i see, so it looks like using context values as deps of useEffect
+    // causes this component to render twice
+    // or, more precisely, setting state inside an effect causes an
+    // extra render, which might become an issue
+    const { readyState, lastMessage, accessible } = React.useContext(GlobalStateContext)
     const [state, setState] = React.useState<FeedState>({
         messagesHistory: [],
         dialogOpen: false,
-        connSelected: null
+        connSelected: accessible.at(0) || null,
     })
-    const { readyState, lastMessage, accessible } = React.useContext(GlobalStateContext)
 
     // populate array of messages from producer
     React.useEffect(() => {
@@ -143,7 +142,7 @@ const Feed = ({ maxEntries }: FeedProps) => {
                 return old
             }
             console.log('updates messages', lastMessage)
-            if (old.messagesHistory.length == (maxEntries || defaultMaxEntries)) {
+            if (old.messagesHistory.length == (maxEntries)) {
                 old.messagesHistory.shift()
             }
             return { ...old, messagesHistory: old.messagesHistory.concat(lastMessage) }
@@ -153,6 +152,9 @@ const Feed = ({ maxEntries }: FeedProps) => {
     const hasAccessible = accessible.length !== 0
 
     React.useEffect(() => {
+        if (state.connSelected === null && accessible.length > 0) {
+            return setState((old) => { return { ...old, connSelected: accessible[0] } })
+        }
         if (state.connSelected === null) return
         if (accessible.includes(state.connSelected)) return
         setState((old) => { return { ...old, dialogOpen: false } })
@@ -161,10 +163,14 @@ const Feed = ({ maxEntries }: FeedProps) => {
     // will open dialog
     const dispatcher = React.useMemo((): ConnectDispatcher => {
         return {
-            dispatch: (some) => {
-                console.log(`you clicked ${some}`)
-                setState((old) => { return { ...old, dialogOpen: true, connSelected: some } })
-            }
+            connect: (name) => {
+                console.log(`connects ${name}`)
+                setState((old) => { return { ...old, dialogOpen: true } })
+            },
+            select(name) {
+                console.log(`you clicked ${name}`)
+                setState((old) => { return { ...old, connSelected: name } })
+            },
         }
     }, [setState])
 
@@ -173,21 +179,42 @@ const Feed = ({ maxEntries }: FeedProps) => {
     }, [setState])
 
     return (
-        <Card elevation={0} sx={{ padding: '10px' }}>
-            <Redraws name='feed' />
-            {!hasAccessible && <AlertSnackbar />}
-            <Stack
-                direction='row'
-                justifyContent='center'
-                spacing={1}
+        <>
+            <Card elevation={0} sx={{ p: '10px', my: '10px' }}>
+                <Stack
+                    direction='row'
+                    justifyContent='center'
+                    spacing={1}
+                >
+                    <SerialSelectorDropdown
+                        serials={accessible.sort()}
+                        dispatcher={dispatcher}
+                    />
+                    <Controls readyState={readyState} />
+                    <SocketStatusAlert open={readyState} />
+                </Stack>
+            </Card>
+            <Card elevation={0} sx={{ p: '10px', my: '10px' }}>
+                <Redraws name='feed' />
+                {!hasAccessible && <AlertSnackbar />}
+                <ConnPopup
+                    conn={state.connSelected || ""}
+                    onClose={handleDialogClose} open={state.dialogOpen}
+                />
+                <LogFeed messages={state.messagesHistory} />
+            </Card>
+            <Card elevation={0} sx={{
+                p: '10px',
+                my: '10px',
+                // bgcolor: 'cadetblue'
+            }}
             >
-                <SerialSelectorDropdown serials={accessible.sort()} dispatcher={dispatcher} />
-                <Controls readyState={readyState} />
-                <SocketStatusAlert open={readyState} />
-            </Stack>
-            <ConnPopup conn={state.connSelected || ""} onClose={handleDialogClose} open={state.dialogOpen} />
-            <LogFeed messages={state.messagesHistory} />
-        </Card>
+                <InputArea
+                    connSelected={state.connSelected}
+                    active={!!state.connSelected && accessible.includes(state.connSelected)}
+                />
+            </Card>
+        </>
     )
 }
 

@@ -11,8 +11,8 @@ type ConnPopupProps = {
 
 // Popup displayed when user selects a serial to connect to
 // with some options like baudrate or parity
-const ConnPopup = ({ open, conn, baudrate, onClose }: ConnPopupProps) => {
-    const [Baudrate, setBaudrate] = React.useState(baudrate || 9600)
+const ConnPopup: React.FC<ConnPopupProps> = ({ open, conn, baudrate = 9600, onClose }) => {
+    const [Baudrate, setBaudrate] = React.useState(baudrate)
     const [ReadTimeout, setReadTimeout] = React.useState(1)
     const { perform } = React.useContext(GlobalDispatcherContext)
 

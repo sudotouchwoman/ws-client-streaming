@@ -6,11 +6,9 @@ import { GlobalDispatcherContext, SocketNotReady } from '../contexts/WebSocket/W
 
 const DefaultDiscoverInterval = 10000
 
-type Props = {
-    readyState: ReadyState
-}
+type ControlsProps = { readyState: ReadyState }
 
-const Controls = ({ readyState }: Props) => {
+const Controls: React.FC<ControlsProps> = React.memo(({ readyState }) => {
     const { discover } = React.useContext(GlobalDispatcherContext)
 
     // auto-discover connections on reconnects
@@ -37,12 +35,12 @@ const Controls = ({ readyState }: Props) => {
             />
         </React.Fragment>
     )
-}
+})
 
-const RefreshButton = React.memo((props: ButtonProps) => {
-    return <Button {...props} startIcon={<Sync/>} variant='contained'>
+const RefreshButton = (props: ButtonProps) => {
+    return <Button {...props} startIcon={<Sync />} variant='contained'>
         Refresh
     </Button>
-})
+}
 
 export default Controls
