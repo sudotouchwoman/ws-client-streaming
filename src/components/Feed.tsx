@@ -1,14 +1,15 @@
-import { Alert, AlertColor, Card, Chip, Collapse, Divider, List, ListItem, ListItemText, Slide, Snackbar, Stack, Tooltip } from '@mui/material'
 import React from 'react'
-import { TransitionGroup } from 'react-transition-group'
+import { Alert, AlertColor, Box, Button, ButtonProps, Card, Chip, Skeleton, Stack } from '@mui/material'
+import DeleteIcon from '@mui/icons-material/Delete'
 import { ReadyState } from 'react-use-websocket'
-import { FixedSizeList, ListChildComponentProps } from 'react-window'
 import { SerialMessage } from '../contexts/WebSocket/messages'
 import { GlobalStateContext } from '../contexts/WebSocket/WebSocketContext'
 import ConnPopup from './ConnPopup'
 import Controls from './Controls'
+import LogFeed, { LogFeedMessage } from './FeedList'
 import InputArea from './InputArea'
 import SerialSelectorDropdown, { ConnectDispatcher } from './SerialDropdown'
+import AlertSnackbar from './AlertSnackbar'
 
 type RedrawProps = { name: string }
 
@@ -20,112 +21,6 @@ export const Redraws: React.FC<RedrawProps> = ({ name }) => {
     })
     return <Chip label={name + ':' + redraws.current} />
 }
-
-// const LogFeedItemMUI: React.FC<{ line: SerialMessage }> = React.memo(({ line }) => {
-    //     const ts = new Date(line.iat).toTimeString()
-    //     const [open, setOpen] = React.useState(true)
-    //     const toggleExpand = React.useCallback(() => setOpen((open) => !open), [])
-    
-    //     return (
-        //         <ListItem
-        //             key={line.iat}
-        //             alignItems='flex-start'
-        //         // component='div'
-        //         // disableRipple
-        //         // disableGutters
-        //         >
-        //             <Tooltip title={ts} placement='left-end'>
-        //                 <Chip label={line.serial} onClick={toggleExpand} />
-        //             </Tooltip>
-        //             <MultiLineText text={line.message} open={open} />
-        //             <Divider orientation='horizontal' />
-        //         </ListItem>
-        //     )
-// })
-
-type LogFeedProps = {
-    messages: SerialMessage[]
-}
-
-// LogFeed component renders a FixedSizeList
-// of elements provided by parent.
-// Memoize it to only rerender once there is a new message
-// using a custom areEqual predicate!
-// P.S. Glad to see that React supports this feature as
-// array comparison sometimes does not work the expected way
-const LogFeed = React.memo(({ messages }: LogFeedProps) => {
-    return (
-        // <>
-        //     <Redraws name='log-feed' />
-        //     <List>
-        //         <TransitionGroup>
-        //             {messages.map((v, i) => (
-        //                 <Collapse key={i + v.iat}>
-        //                     <LogFeedItemMUI line={v} />
-        //                 </Collapse>
-        //             ))}
-        //         </TransitionGroup>
-        //     </List>
-        // </>
-        <>
-            <Redraws name='log-feed' />
-            <FixedSizeList
-                width='100%'
-                height={500}
-                itemData={messages}
-                itemSize={46}
-                itemCount={messages.length}
-            >
-                {LogFeedItem}
-            </FixedSizeList>
-        </>
-    )
-}, (prev, next) => {
-    // predicate to check whether props are equal
-    return prev.messages.length === next.messages.length &&
-        prev.messages.every((v, i) => v === next.messages[i])
-})
-
-const MultiLineText: React.FC<{ text: string, open?: boolean }> =
-    React.memo(({ text, open = true }) => {
-        return (
-            <Collapse unmountOnExit in={open}>
-                <List component='div' disablePadding>
-                    {text.split("\n").map((i, key) => {
-                        return <ListItemText key={key}>{i}</ListItemText>;
-                    })}
-                </List>
-            </Collapse>
-        )
-    })
-
-// Memoize items to avoid tooltip misbehavior (otherwise it
-// reappears on each rerender when hovering on a fixed item)
-const LogFeedItem = React.memo((p: ListChildComponentProps<SerialMessage[]>) => {
-    const { index, style, data } = p
-    const line = data[index]
-    const ts = new Date(line.iat).toTimeString()
-    return (
-        <ListItem
-            style={style}
-            key={line.iat}
-        // component='div'
-        // disableRipple
-        // disableGutters
-        >
-            <Tooltip title={ts} placement='left-end'>
-                <Chip label={line.serial} />
-            </Tooltip>
-            <MultiLineText text={line.message} />
-            <Divider orientation='horizontal' />
-            {/* <ListItemText
-                primary={<MultiLineText text={line.message} />}
-                // primaryTypographyProps={{ style: { whiteSpace: "normal", wordWrap: "break-word" } }}
-                sx={{ paddingLeft: '10px' }}
-            /> */}
-        </ListItem>
-    )
-})
 
 interface SocketStatusAlertProps {
     open: ReadyState
@@ -158,7 +53,7 @@ interface FeedProps {
 }
 
 type FeedState = {
-    messagesHistory: SerialMessage[]
+    messagesHistory: LogFeedMessage[]
     dialogOpen: boolean
     connSelected: string | null
 }
@@ -170,7 +65,7 @@ const Feed: React.FC<FeedProps> = ({ maxEntries = 10 }) => {
     // causes this component to render twice
     // or, more precisely, setting state inside an effect causes an
     // extra render, which might become an issue
-    const { readyState, lastMessage, accessible } = React.useContext(GlobalStateContext)
+    const { readyState, lastMessage, lastError, accessible } = React.useContext(GlobalStateContext)
     const [state, setState] = React.useState<FeedState>({
         messagesHistory: [],
         dialogOpen: false,
@@ -179,7 +74,7 @@ const Feed: React.FC<FeedProps> = ({ maxEntries = 10 }) => {
 
     // populate array of messages from producer
     React.useEffect(() => {
-        setState((old) => {
+        setState(old => {
             if (!lastMessage) return old // skip null messages
             // also skip duplicate messages: this is a dirty hack
             // around react's strict mode to remove duplicate
@@ -189,22 +84,23 @@ const Feed: React.FC<FeedProps> = ({ maxEntries = 10 }) => {
                 return old
             }
             console.log('updates messages', lastMessage)
-            if (old.messagesHistory.length == (maxEntries)) {
-                old.messagesHistory.shift()
-            }
+            // i removed the upper limit as React window is
+            // capable of holding really long lists and adding a "clear" button
+            // felt like a really consice solution to this
+            // if (old.messagesHistory.length == (maxEntries)) {
+            //     old.messagesHistory.shift()
+            // }
             return { ...old, messagesHistory: old.messagesHistory.concat(lastMessage) }
         })
     }, [lastMessage])
 
-    const hasAccessible = accessible.length !== 0
-
     React.useEffect(() => {
         if (state.connSelected === null && accessible.length > 0) {
-            return setState((old) => { return { ...old, connSelected: accessible[0] } })
+            return setState(old => ({ ...old, connSelected: accessible[0] }))
         }
         if (state.connSelected === null) return
         if (accessible.includes(state.connSelected)) return
-        setState((old) => { return { ...old, dialogOpen: false } })
+        setState(old => ({ ...old, dialogOpen: false }))
     }, [accessible])
 
     // will open dialog
@@ -212,18 +108,28 @@ const Feed: React.FC<FeedProps> = ({ maxEntries = 10 }) => {
         return {
             connect: (name) => {
                 console.log(`connects ${name}`)
-                setState((old) => { return { ...old, dialogOpen: true } })
+                setState(old => ({ ...old, dialogOpen: true }))
             },
             select(name) {
                 console.log(`you clicked ${name}`)
-                setState((old) => { return { ...old, connSelected: name } })
+                setState(old => ({ ...old, connSelected: name }))
             },
         }
-    }, [setState])
+    }, [])
 
     const handleDialogClose = React.useMemo(() => () => {
-        setState((old) => { return { ...old, dialogOpen: false } })
-    }, [setState])
+        setState(old => ({ ...old, dialogOpen: false }))
+    }, [])
+    const handleClearMessageHistory = React.useCallback(() => setState(old => ({ ...old, messagesHistory: [] })), [])
+    const handleClientMessageAdd = React.useMemo(
+        () => (m: string) => setState(old => ({
+            ...old,
+            messagesHistory: old.messagesHistory.concat({
+                message: m, sent: true,
+                serial: state.connSelected!, iat: new Date().toISOString()
+            })
+        })),
+        [])
 
     return (
         <>
@@ -238,17 +144,29 @@ const Feed: React.FC<FeedProps> = ({ maxEntries = 10 }) => {
                         dispatcher={dispatcher}
                     />
                     <Controls readyState={readyState} />
+                    <ClearButton
+                        onClick={handleClearMessageHistory}
+                        variant='outlined'
+                        disableElevation
+                        disabled={state.messagesHistory.length === 0}
+                    />
                     <SocketStatusAlert open={readyState} />
                 </Stack>
             </Card>
             <Card elevation={0} sx={{ p: '10px', my: '10px' }}>
                 <Redraws name='feed' />
-                {!hasAccessible && <AlertSnackbar />}
+                <AlertSnackbar />
                 <ConnPopup
                     conn={state.connSelected || ""}
                     onClose={handleDialogClose} open={state.dialogOpen}
                 />
-                <LogFeed messages={state.messagesHistory} />
+                {/* JS is a boilerplate-oriented language thus
+                I use lines below to trick react-window to drop element sizes once
+                the list is cleared (otherwise it would "remember" height for each index and
+                reuse that one even after the list contents are cleared. This works nicely
+            with memo, too)*/}
+                {state.messagesHistory.length === 0 && <MessageSkeleton />}
+                {state.messagesHistory.length > 0 && <LogFeed messages={state.messagesHistory} />}
             </Card>
             <Card elevation={0} sx={{
                 p: '10px',
@@ -257,6 +175,7 @@ const Feed: React.FC<FeedProps> = ({ maxEntries = 10 }) => {
             >
                 <InputArea
                     connSelected={state.connSelected}
+                    onSubmit={handleClientMessageAdd}
                     active={!!state.connSelected && accessible.includes(state.connSelected)}
                 />
             </Card>
@@ -266,19 +185,18 @@ const Feed: React.FC<FeedProps> = ({ maxEntries = 10 }) => {
 
 export default Feed
 
-// This snackbar appears once there are no serial connections
-// accessible
-const AlertSnackbar = React.memo(() => {
-    const [closed, setClosed] = React.useState(false)
-    return <Snackbar
-        open={!closed}
-        TransitionComponent={Slide}
-        autoHideDuration={2000}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        onClose={() => setClosed(true)}
-    >
-        <Alert severity='warning'>
-            No accessible serial connections!
-        </Alert>
-    </Snackbar>
+const MessageSkeleton = React.memo(() => {
+    return (
+        <Box height={500}>
+            <Skeleton variant='rounded' height={500} animation='wave' sx={{ m: '10px' }} />
+        </Box>
+    )
+})
+
+
+// Button to clear list of messages
+const ClearButton: React.FC<ButtonProps> = React.memo((props) => {
+    return <Button {...props}>
+        <DeleteIcon />
+    </Button>
 })
